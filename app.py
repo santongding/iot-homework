@@ -6,6 +6,7 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
+camera = cv2.VideoCapture(0)
 @app.route('/')
 def index():
     # 主页面
@@ -16,7 +17,7 @@ def gen_frames():
     frame_count = 0
     start_time = time.time()
     while True:
-        camera = cv2.VideoCapture(0)
+        global camera
         success, frame = camera.read()  # read the camera frame
         if not success:
             print("Can not read from camera")
@@ -57,4 +58,4 @@ def video_feed():
 
 if __name__ == '__main__':
     # 开始 Flask 应用
-    socketio.run(app, debug=True, port=5002)
+    socketio.run(app, use_reloader=False, debug=True, port=5003)
