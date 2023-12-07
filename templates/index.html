@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Real-Time Camera Stream</title>
+    <style>
+        img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd; /* Optional: adds a light border around the image */
+            border-radius: 4px; /* Optional: rounds the corners of the image */
+            padding: 5px; /* Optional: adds space around the image */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, .1); /* Optional: adds a shadow around the image */
+        }
+        body {
+            margin: 0;
+            padding-top: 20px; /* Provide some space for the header */
+            background-color: #f0f0f0;
+            text-align: center; /* Centers the content */
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Real-Time Camera Stream
+    <div id="fps">FPS: 0.00</div></h1> <!-- Add this line to display FPS data -->
+    <img src="{{ url_for('video_feed') }}" id="video-stream">
+    <script>
+        const image = document.getElementById('video-stream');
+        image.onload = function() {
+            // Adjust the size of the image here if necessary
+        };
+    </script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
+    <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', function () {
+            var socket = io.connect('http://' + document.domain + ':' + location.port);
+
+            socket.on('FPS', function(data) {
+                document.getElementById('fps').textContent = "FPS: " + data.fps.toFixed(2);
+            });
+        });
+    </script>
+</body>
+</html>
