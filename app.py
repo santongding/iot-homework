@@ -4,6 +4,7 @@ import cv2
 import time
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 @app.route('/')
 def index():
@@ -11,15 +12,15 @@ def index():
     return render_template('index.html')
 
 def gen_frames():  
-    camera = cv2.VideoCapture(0)
     fps = 0
     frame_count = 0
     start_time = time.time()
     while True:
+        camera = cv2.VideoCapture(0)
         success, frame = camera.read()  # read the camera frame
         if not success:
             print("Can not read from camera")
-            break
+            time.sleep(1)
         else:
             frame_count += 1
             end_time = time.time()
@@ -30,6 +31,19 @@ def gen_frames():
                 
                 # Emit FPS to client via socket.io
                 socketio.emit('FPS', {'fps': fps})
+            
+                        # Convert to grayscale for face detection
+            resize_scale = 0.3
+            small_frame = cv2.resize(frame,(0, 0), fx=resize_scale, fy=resize_scale)
+            gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
+            # Detect faces
+            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+            # Draw rectangles around the faces
+            for (x, y, w, h) in faces:
+                x, y, w, h = [int(dim / resize_scale) for dim in (x, y, w, h)]
+                cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+
+
             ret, buffer = cv2.imencode('.jpg', frame)
             frame = buffer.tobytes()
             yield (b'--frame\r\n'
@@ -43,4 +57,4 @@ def video_feed():
 
 if __name__ == '__main__':
     # 开始 Flask 应用
-    socketio.run(app, debug=True, port=5001)
+    socketio.run(app, debug=True, port=5002)
