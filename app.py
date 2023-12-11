@@ -3,6 +3,7 @@ from flask_socketio import SocketIO
 import cv2
 import time
 import threading
+from volume import get_volume
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -13,6 +14,8 @@ def gen_frames_async():
     global rsc
     print("entering generate thread")
     camera = cv2.VideoCapture(0)
+    start_time = time.time()
+    last_external_flush_time = time.time()
     while True:
         success, frame = camera.read()  # read the camera frame
         if not success:
@@ -25,18 +28,28 @@ def gen_frames_async():
             gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
             # Detect faces
             faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-            # Draw rectangles around the faces
-            for (x, y, w, h) in faces:
-                x, y, w, h = [int(dim / resize_scale) for dim in (x, y, w, h)]
-                cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
 
+            time_flush_cond = time.time() - start_time > 1
+            face_flush_cond = len(faces) >= 1
+            volume_flush_cond = get_volume() >= 70
+            external_flush_cond = face_flush_cond or volume_flush_cond
+            
+            if external_flush_cond:
+                last_external_flush_time = time.time()
 
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
             with cond:
-                rsc = (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')  
-                cond.notify_all()
+                if time_flush_cond or external_flush_cond or time.time() - last_external_flush_time < 5:
+                    start_time = time.time()
+                    # Draw rectangles around the faces
+                    for (x, y, w, h) in faces:
+                        x, y, w, h = [int(dim / resize_scale) for dim in (x, y, w, h)]
+                        cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+                    ret, buffer = cv2.imencode('.jpg', frame)
+                    frame = buffer.tobytes()
+                    rsc = (b'--frame\r\n'
+                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+                    cond.notify_all()
 
 @app.route('/')
 def index():
@@ -48,11 +61,12 @@ def gen_frames():
     frame_count = 0
     start_time = time.time()
     last_frm = None
+    last_volume = 0
     global rsc
     while True:
             # Emit FPS to client via socket.io
         with cond:
-            if rsc == last_frm:
+            if rsc is None or rsc == last_frm:
                 cond.wait()
             last_frm = rsc
         assert not last_frm is None
@@ -62,7 +76,7 @@ def gen_frames():
             fps = frame_count / (end_time - start_time)
             frame_count = 0
             start_time = time.time()
-        socketio.emit('FPS', {'fps': fps})
+        socketio.emit('FPS', {'fps': fps, 'volume': get_volume()})
         yield last_frm
             
 @app.route('/video_feed')

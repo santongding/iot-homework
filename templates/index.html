@@ -37,7 +37,7 @@
             var socket = io.connect('http://' + document.domain + ':' + location.port);
 
             socket.on('FPS', function(data) {
-                document.getElementById('fps').textContent = "FPS: " + data.fps.toFixed(2);
+                document.getElementById('fps').textContent = "FPS: " + data.fps.toFixed(2) + " " + "Volume: " + data.volume.toFixed(0) + "db";
             });
         });
     </script>
